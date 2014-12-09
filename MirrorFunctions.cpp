@@ -10,15 +10,16 @@ MirrorFunctions::MirrorFunctions(uint8_t sensorAddress, int drivePin, int leftPi
     m_drivePin = drivePin;
     m_leftPin = leftPin;
     m_rightPin = rightPin;
+    m_freq = .1f;
+    m_ampl = 1.0f;
 
 }
 
 MirrorFunctions::~MirrorFunctions()
 {
-    delete m_pidl;
 }
 
-void setSensorZero(int zeropos)
+void MirrorFunctions::setSensorZero(int zeropos)
 {
     Wire.beginTransmission(m_sensorAddress);
     Wire.write(SENSOR_ZERO_ADDR);
@@ -27,7 +28,7 @@ void setSensorZero(int zeropos)
     Wire.endTransmission();
 }
 
-int readSensor(char reg_addr)
+int MirrorFunctions::readSensor(char reg_addr)
 {
     //Serial.println("Clearing I2C input buffer...");
     while(Wire.available())
@@ -46,7 +47,7 @@ int readSensor(char reg_addr)
     return ret;
 }
 
-void setactuator(float x)
+void MirrorFunctions::setactuator(float x)
 {
     if(x == 0)
     {
@@ -75,7 +76,7 @@ void setactuator(float x)
     }
 }
 
-void initactuator()
+void MirrorFunctions::initactuator()
 {
     setactuator(-0.5);
     Serial.println("Min pos");
@@ -88,12 +89,18 @@ void initactuator()
     setactuator(0);
 }
 
-float getscaledpos()
+float MirrorFunctions::getscaledpos()
 {
     int pos = readSensor(SENSOR_ANG_ADDR);
     return (((float)(pos - m_actuator_minpos))/(m_actuator_maxpos - m_actuator_minpos))*2.0f - 1.0f;
 }
 
-void calculate(float x, float target_x, float dt){
-    return m_pidl.calculate(x,target_x,dt);
+float MirrorFunctions::calculate(float x, float target_x, float dt)
+{
+    return m_pidl.calculate(x, target_x, dt);
+}
+
+PIDController* MirrorFunctions::PID()
+{
+    return &m_pidl;
 }

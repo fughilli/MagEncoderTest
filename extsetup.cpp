@@ -3,6 +3,7 @@
 #include <Wire.h>
 #include <stdlib.h>
 #include "Smoother.h"
+#include "MirrorFunctions.h"
 
 #define SENSOR_ADDR 0x40
 #define SENSOR_MAG_ADDR 0xFC
@@ -15,6 +16,8 @@ void setactuator(float);
 float getscaledpos();
 float calc_dt();
 void initactuator();
+
+float * cargs[5][2];
 
 float dt = 0;
 
@@ -39,6 +42,9 @@ int accum = 0;
 PIDController xcontroller(0.1f, 0.0f, 0.0f);
 Smoother<float, 2> smooth;
 
+MirrorFunctions actuatorOne(0x40,5,2,6);
+MirrorFunctions actuatorTwo(0x41,3,4,7);
+
 void extsetup()
 {
     Wire.begin();
@@ -56,20 +62,35 @@ void extsetup()
     digitalWrite(3, LOW);
     digitalWrite(5, LOW);
 
-    pinMode(9, OUTPUT);
 
+    pinMode(9, OUTPUT);
     //analogWrite(5, 128);
 
     Serial.println("Program start! Calibrate actuator...");
     delay(2000);
 
-    setSensorZero(0);
+    actuatorOne.setSensorZero(0);
+    actuatorTwo.setSensorZero(0);
 
-    initactuator();
+    actuatorOne.initactuator();
+    actuatorTwo.initactuator();
 
-    Serial.print(actuator_minpos);
-    Serial.print(", ");
-    Serial.println(actuator_maxpos);
+    cargs[0][0] = &actuatorOne.PID()->coefficients.p;
+    cargs[1][0] = &actuatorOne.PID()->coefficients.i;
+    cargs[2][0] = &actuatorOne.PID()->coefficients.d;
+    cargs[4][0] = &actuatorOne.m_ampl;
+    cargs[3][0] = &actuatorOne.m_freq;
+
+    cargs[0][1] = &actuatorTwo.PID()->coefficients.p;
+    cargs[1][1] = &actuatorTwo.PID()->coefficients.i;
+    cargs[2][1] = &actuatorTwo.PID()->coefficients.d;
+    cargs[4][1] = &actuatorTwo.m_ampl;
+    cargs[3][1] = &actuatorTwo.m_freq;
+
+
+    //Serial.print(actuator_minpos);
+    //Serial.print(", ");
+    //Serial.println(actuator_maxpos);
 }
 
 void setSensorZero(int zeropos)
@@ -159,25 +180,26 @@ float getscaledpos()
 void processCommand(char * buf)
 {
     float * toset = 0;
+    uint8_t index = buf[1]-'1';
     switch(buf[0])
     {
     case 'p':
     case 'P':
-        toset = &xcontroller.coefficients.p;
+        toset = cargs[0][index];
         Serial.write('p');
         break;
     case 'i':
     case 'I':
-        toset = &xcontroller.coefficients.i;
+        toset = cargs[1][index];
         Serial.write('i');
         break;
     case 'd':
     case 'D':
-        toset = &xcontroller.coefficients.d;
+        toset = cargs[3][index];
         Serial.write('d');
         break;
     case 'f':
-        toset = &freq;
+        toset = cargs[4][index];
         Serial.write('f');
         break;
     case 'g':
@@ -185,7 +207,7 @@ void processCommand(char * buf)
         return;
         break;
     case 'a':
-        toset = &ampl;
+        toset = cargs[5][index];
         break;
     case 'l':
         toset = &laserf;
@@ -194,7 +216,7 @@ void processCommand(char * buf)
 
     if(toset != 0)
     {
-        *toset = atof(buf + 1);
+        *toset = atof(buf + 2);
         Serial.println(*toset, 10);
     }
 }
@@ -221,11 +243,14 @@ void extloop()
 
 //    smooth.pushValue(getscaledpos());
 //    float pos = smooth.pullValue();
-    float pos = getscaledpos();
+    float pos1 = actuatorOne.getscaledpos();
+    float pos2 = actuatorTwo.getscaledpos();
 
-    float control = xcontroller.calculate(pos, sint, dt);
+    float control1 = actuatorOne.calculate(pos1, sint, dt);
+    float control2 = actuatorTwo.calculate(pos2, sint, dt);
 
-    setactuator(control);
+    actuatorOne.setactuator(control1);
+    actuatorTwo.setactuator(control2);
 
     if(Serial.available())
     {

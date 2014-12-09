@@ -3,6 +3,7 @@
 #include "PIDControl.h"
 #include <stdlib.h>
 #include "Smoother.h"
+#include "MirrorFunctions.h"
 
 void setup()
 {
