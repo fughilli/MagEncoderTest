@@ -25,6 +25,8 @@ int prev_millis = 0, cur_millis = 0;
 
 int accum = 0;
 
+MirrorAxis MAYaw(0x40, 6, 2, 5), MAPitch(0x41, 4, 7, 3);
+
 void extsetup()
 {
     Wire.begin();
@@ -33,7 +35,8 @@ void extsetup()
 
     Serial.println("Program start! Calibrate actuator...");
 
-
+    //MAYaw.initialize();
+    MAPitch.initialize();
 }
 
 
@@ -53,17 +56,17 @@ void processCommand(char * buf)
     {
     case 'p':
     case 'P':
-        toset = &xcontroller.coefficients.p;
+        toset = &MAPitch.PID.coefficients.p;
         Serial.write('p');
         break;
     case 'i':
     case 'I':
-        toset = &xcontroller.coefficients.i;
+        toset = &MAPitch.PID.coefficients.i;
         Serial.write('i');
         break;
     case 'd':
     case 'D':
-        toset = &xcontroller.coefficients.d;
+        toset = &MAPitch.PID.coefficients.d;
         Serial.write('d');
         break;
     case 'f':
@@ -109,13 +112,11 @@ void extloop()
         digitalWrite(9, (laserf < -1.0f)?HIGH:LOW);
     }
 
-//    smooth.pushValue(getscaledpos());
-//    float pos = smooth.pullValue();
-    float pos = getscaledpos();
+    //MAYaw.setPos(sint);
+    MAPitch.setPos(sint);
 
-    float control = xcontroller.calculate(pos, sint, dt);
-
-    setactuator(control);
+    //MAYaw.update(dt);
+    MAPitch.update(dt);
 
     if(Serial.available())
     {
@@ -126,15 +127,5 @@ void extloop()
             ibufferIndex = 0;
         }
     }
-
-//    Serial.print(pos, 4);
-//    Serial.print(",\t");
-//    Serial.print(sint, 4);
-//    Serial.print(",\t");
-//    Serial.println(control, 4);
-
-    //accum |= magnitude;
-    //Serial.println(magnitude);
-    //delay(10);
 }
 

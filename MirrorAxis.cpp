@@ -1,7 +1,7 @@
 #include "MirrorAxis.h"
 #include "Wire.h"
 
-static void setSensorZero(uint8_t dev_addr, int zeropos)
+static void setSensorZero(char dev_addr, int zeropos)
 {
     Wire.beginTransmission(dev_addr);
     Wire.write(SENSOR_ZERO_ADDR);
@@ -10,7 +10,7 @@ static void setSensorZero(uint8_t dev_addr, int zeropos)
     Wire.endTransmission();
 }
 
-static int readSensor(uint8_t dev_addr, uint8_t reg_addr)
+static int readSensor(char dev_addr, char reg_addr)
 {
     //Serial.println("Clearing I2C input buffer...");
     while(Wire.available())
@@ -59,7 +59,7 @@ MirrorAxis::MirrorAxis(uint8_t sensor_addr, int dpin1, int dpin2, int drivepin) 
 {
     m_dev_addr = sensor_addr;
     m_dpin1 = dpin1;
-    m_dpin2 = dpin2
+    m_dpin2 = dpin2;
     m_drivepin = drivepin;
 
     m_actuator_minpos = 0;
@@ -82,11 +82,11 @@ void MirrorAxis::initialize()
     digitalWrite(m_drivepin, LOW);
 
     // Calibration procedure
-    setActuatorPower(-0.5);
+    setActuatorPower(-1);
     Serial.println("Min pos");
     delay(1000);
     m_actuator_minpos = readSensor(m_dev_addr, SENSOR_ANG_ADDR);
-    setActuatorPower(0.5);
+    setActuatorPower(1);
     Serial.println("Max pos");
     delay(1000);
     m_actuator_maxpos = readSensor(m_dev_addr, SENSOR_ANG_ADDR);
@@ -95,7 +95,7 @@ void MirrorAxis::initialize()
 
 void MirrorAxis::update(float dt)
 {
-    setActuatorPower(PID.calculate(_getPos(), m_setpos, dt))
+    setActuatorPower(PID.calculate(_getPos(), m_setpos, dt));
 }
 
 void MirrorAxis::setPos(float pos)
