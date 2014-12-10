@@ -13,21 +13,36 @@ static void setSensorZero(char dev_addr, int zeropos)
 
 static int readSensor(char dev_addr, char reg_addr, bool * success)
 {
+    Serial.write('0');
     //Serial.println("Clearing I2C input buffer...");
     while(Wire.available())
+    {
+        Serial.write('3');
         Wire.read();
+    }
 
     //Serial.println("Reading slave...");
     Wire.beginTransmission(dev_addr);
+    Serial.write('4');
     Wire.write(reg_addr);
-    Wire.endTransmission();
+    Serial.write('5');
+    if(Wire.endTransmission(false) != 0)
+    {
+        Serial.write('8');
+        if(success != NULL)
+            *success = false;
+        return -1;
+    }
+    Serial.write('6');
     Wire.requestFrom(dev_addr, 2);
+    Serial.write('7');
 
     long startmillis = millis();
     while(Wire.available() < 2)
     {
         if(millis() > startmillis + SENSOR_READ_TIMEOUT)
         {
+            Serial.write('2');
             if(success != NULL)
                 *success = false;
             return -1;
@@ -39,12 +54,14 @@ static int readSensor(char dev_addr, char reg_addr, bool * success)
 
     if(success != NULL)
         *success = true;
+
+    Serial.write('1');
+
     return ret;
 }
 
 void MirrorAxis::setActuatorPower(float x)
 {
-    Serial.write(6);
     if(x == 0)
     {
         digitalWrite(m_drivepin, LOW);
@@ -67,7 +84,6 @@ void MirrorAxis::setActuatorPower(float x)
 
         analogWrite(m_drivepin, (uint8_t)(255 * -x));
     }
-    Serial.write('7');
 }
 
 MirrorAxis::MirrorAxis(uint8_t sensor_addr, int dpin1, int dpin2, int drivepin) : PID(0.3f, 0.0f, 0.0001f)
@@ -145,9 +161,7 @@ float MirrorAxis::_getPos(bool * success)
 {
     if(!m_initfail)
     {
-        Serial.write('1');
         int pos = readSensor(m_dev_addr, SENSOR_ANG_ADDR, success);
-        Serial.write('2');
         return m_pos = ((((float)(pos - m_actuator_minpos))/(m_actuator_maxpos - m_actuator_minpos))*2.0f - 1.0f);
     }
 }

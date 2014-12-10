@@ -138,7 +138,6 @@ void extloop()
     MAYaw.setPos(sint1);
     MAPitch.setPos(sint2);
 
-    Serial.write('0');
     MAYaw.update(dt);
     MAPitch.update(dt);
 
