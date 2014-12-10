@@ -7,6 +7,8 @@
 #define SENSOR_ANG_ADDR 0xFF
 #define SENSOR_ZERO_ADDR 0x17
 
+#define SENSOR_READ_TIMEOUT 2
+
 class MirrorAxis
 {
 public:
@@ -19,12 +21,13 @@ public:
     void setPos(float pos);
     float getPos();
 private:
-    float _getPos();
+    float _getPos(bool * success = NULL);
     void setActuatorPower(float x);
     int m_dpin1, m_dpin2, m_drivepin;
     uint8_t m_dev_addr;
     float m_pos, m_setpos;
     int m_actuator_minpos, m_actuator_maxpos;
+    bool m_initfail;
 };
 
 #endif // _MIRROR_AXIS_H_
