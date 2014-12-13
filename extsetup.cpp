@@ -240,8 +240,6 @@ void circleUpdateFunction(float t, float dt)
 
     MAYaw.setPos(sint1);
     MAPitch.setPos(sint2);
-
-    //float lasersint = (((int)(t*laserf))%2)?1.0f:-1.0f;//sin(t*laserf*TWO_PI);
 }
 
 void boxUpdateFunction(float t, float dt)
@@ -328,7 +326,6 @@ void snake2InitFunction()
 
 void idleInitFunction()
 {
-    Serial.println("setLaser -1");
     setLaser(-1);
 
     MAYaw.setPos(0);
