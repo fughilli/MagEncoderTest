@@ -1,3 +1,31 @@
+/*
+ * MirrorAxis.cpp
+ *
+ *  Created on: Dec 8, 2014
+ *      Author: Kevin Balke
+ *
+ *
+ * Copyright (C) 2012-2014  Kevin Balke, Iyal Suresh, Alexander Fong
+ *
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ *
+ */
+
 #include "MirrorAxis.h"
 #include "Wire.h"
 #include "Arduino.h"
@@ -86,7 +114,7 @@ void MirrorAxis::setActuatorPower(float x)
     }
 }
 
-MirrorAxis::MirrorAxis(uint8_t sensor_addr, int dpin1, int dpin2, int drivepin) : PID(0.3f, 0.0f, 0.0001f)
+MirrorAxis::MirrorAxis(uint8_t sensor_addr, int dpin1, int dpin2, int drivepin) : PID(0.5f, 0.0f, 0.001f)
 {
     m_dev_addr = sensor_addr;
     m_dpin1 = dpin1;
