@@ -1,5 +1,5 @@
 /*
- * extsetup.h
+ * MirrorAxis.h
  *
  *  Created on: Dec 8, 2014
  *      Author: Kevin Balke
@@ -26,18 +26,36 @@
  *
  */
 
-#ifndef _EXT_SETUP_H_
-#define _EXT_SETUP_H_
+#ifndef _MIRROR_AXIS_H_
+#define _MIRROR_AXIS_H_
 
-#include "Arduino.h"
+#include "PIDControl.h"
 
-void extsetup();
-void extloop();
+#define SENSOR_MAG_ADDR 0xFC
+#define SENSOR_ANG_ADDR 0xFF
+#define SENSOR_ZERO_ADDR 0x17
 
-template <class T>
-T clamp(T val, T cmin, T cmax)
+#define SENSOR_READ_TIMEOUT 2
+
+class MirrorAxis
 {
-    return min(max(cmin, val), cmax);
-}
+public:
+    PIDController PID;
 
-#endif // _EXT_SETUP_H_
+    MirrorAxis(uint8_t sensor_addr, int dpin1, int dpin2, int drivepin);
+
+    void initialize();
+    void update(float dt);
+    void setPos(float pos);
+    float getPos();
+private:
+    float _getPos(bool * success = NULL);
+    void setActuatorPower(float x);
+    int m_dpin1, m_dpin2, m_drivepin;
+    uint8_t m_dev_addr;
+    float m_pos, m_setpos;
+    int m_actuator_minpos, m_actuator_maxpos;
+    bool m_initfail;
+};
+
+#endif // _MIRROR_AXIS_H_

@@ -1,3 +1,31 @@
+/*
+ * Smoother.h
+ *
+ *  Created on: Jun 18, 2013
+ *      Author: Kevin Balke
+ *
+ *
+ * Copyright (C) 2012-2014  Kevin Balke
+ *
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ *
+ */
+
 /**
 This module is designed to provide convenient value smoothing capabilities to the Arduino.
 The user creates a new Smoother instance and "pushes" raw values into it, and can then "pull"
@@ -17,26 +45,26 @@ Author: Kevin Balke (fughilli@gmail.com)
 template <typename T, unsigned int S>
 class Smoother
 {
-private:					
+private:
 	T rawValues[S];					// Array to store raw values pushed by the user
 	unsigned int valueIndex;		// The index to push a new raw value to
 	bool loaded;					// Has the rawValues array been fully filled yet?
 	unsigned char solveTime;		// When to solve for the running average
 	T average;						// The stored running average
-	
+
 	//! Calculate the average value of the rawValues array
-	inline void calculateAverage(void)					
+	inline void calculateAverage(void)
 	{
 		average = (T)0;									// Reset the average to 0
 		unsigned int i;									// Index variable (needs to be outside of for() scope)
-		for(i = 0; i < (loaded?S:valueIndex); i++)		// Count up to S if the rawValues is fully loaded, 
+		for(i = 0; i < (loaded?S:valueIndex); i++)		// Count up to S if the rawValues is fully loaded,
 														// otherwise count up to the current index (still filling)
 		{
 			average += rawValues[i];					// Compute sum
 		}
 		average /= (T)i;								// Divide by the number of elements counted
 	}
-	
+
 public:
 	//! Constructor
 	Smoother(unsigned char _solveTime = CALC_ON_PULL)
@@ -46,17 +74,17 @@ public:
 		average = (T)0;				// Averaged value is 0, for now
 		solveTime = _solveTime;		// By default, solve for the average when pulling a value
 	}
-	
+
 	//! Load a new raw value into the rawValues array
-	void pushValue(T rawValue) 
+	void pushValue(T rawValue)
 	{
 		rawValues[valueIndex] = rawValue;	// Load a the given raw value into rawValues at the currently indexed location
-		
+
 		if(solveTime == CALC_ON_PUSH)		// If the user has specified to solve for the average after a push operation
 		{
 			calculateAverage();				// Calculate the average
 		}
-		
+
 		valueIndex++;						// Increment the index
 		if(valueIndex == S)					// If the index has reached the end of the rawValues array (for the first time?)
 		{
@@ -64,16 +92,16 @@ public:
 			valueIndex = 0;					// Reset the index
 		}
 	}
-	
+
 	//! Get the smoothed (average) value from the rawValues array
 	T pullValue(void)
 	{
-		if(solveTime == CALC_ON_PULL)		// If the user has specified to solve for the average after a pull operation 
+		if(solveTime == CALC_ON_PULL)		// If the user has specified to solve for the average after a pull operation
 											// (this is the default)
 		{
 			calculateAverage();				// Calculate the average
 		}
-		
+
 		return average;						// Return the average back to the user
 	}
 };

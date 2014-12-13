@@ -1,124 +1,141 @@
+/*
+ * extsetup.cpp
+ *
+ *  Created on: Dec 8, 2014
+ *      Author: Kevin Balke
+ *
+ *
+ * Copyright (C) 2012-2014  Kevin Balke, Iyal Suresh, Alexander Fong
+ *
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ *
+ */
+
 #include "extsetup.h"
 #include "PIDControl.h"
 #include <Wire.h>
 #include <stdlib.h>
 #include "Smoother.h"
-#include "MirrorFunctions.h"
+#include "MirrorAxis.h"
 
-#define SENSOR_ADDR 0x40
-#define SENSOR_MAG_ADDR 0xFC
-#define SENSOR_ANG_ADDR 0xFF
-#define SENSOR_ZERO_ADDR 0x17
-
-void setSensorZero(int);
-int readSensor(char);
-void setactuator(float);
-float getscaledpos();
-float calc_dt();
-void initactuator();
-
-float * cargs[5][2];
-
+// GLOBAL VARIABLES
 float dt = 0;
 
-float freq = 0.1f, ampl = 1.0f;
-float laserf = 0.1f;
+float globalMult = 1.0f;
 
-char ibuffer[12];
+#define COMM_IBUFFER_SIZE 32
+char ibuffer[COMM_IBUFFER_SIZE];
 uint8_t ibufferIndex = 0;
-
-template <class T>
-T clamp(T val, T cmin, T cmax)
-{
-    return min(max(cmin, val), cmax);
-}
 
 int prev_millis = 0, cur_millis = 0;
 
-int actuator_minpos, actuator_maxpos;
+typedef void(*demoUpdateFunction_t)(float, float);
+typedef void(*demoInitFunction_t)(void);
 
-int accum = 0;
+demoUpdateFunction_t demoUpdateFunction = NULL;
 
-PIDController xcontroller(0.1f, 0.0f, 0.0f);
-Smoother<float, 2> smooth;
+// FUNCTION DECLARATIONS
+float calc_dt();
 
-MirrorFunctions actuatorOne(0x40,5,2,6);
-MirrorFunctions actuatorTwo(0x41,3,4,7);
+void circleUpdateFunction(float t, float dt);
+void boxUpdateFunction(float t, float dt);
+void line1UpdateFunction(float t, float dt);
+void line2UpdateFunction(float t, float dt);
+void snakeUpdateFunction(float t, float dt);
+void bowtievUpdateFunction(float t, float dt);
+void bowtiehUpdateFunction(float t, float dt);
+void snake2UpdateFunction(float t, float dt);
+void tone1sUpdateFunction(float t, float dt);
+
+void circleInitFunction();
+void boxInitFunction();
+void line1InitFunction();
+void line2InitFunction();
+void snakeInitFunction();
+void bowtievInitFunction();
+void bowtiehInitFunction();
+void idleInitFunction();
+void snake2InitFunction();
+void tone1sInitFunction();
+
+// GLOBAL CLASS INSTANCES
+MirrorAxis MAYaw(0x40, 6, 2, 5), MAPitch(0x41, 7, 4, 10);
+
+// DEMO LOOKUP TABLES
+#define NUM_COMMANDS 10
+#define MAX_COMMAND_LEN 8
+
+const char commandStrings[NUM_COMMANDS][MAX_COMMAND_LEN] =
+{
+    "idle",
+    "circle",
+    "box",
+    "line1",
+    "line2",
+    "snake",
+    "bowtiev",
+    "bowtieh",
+    "snake2",
+    "tone1s"
+};
+
+const demoUpdateFunction_t commandUpdateFuncs[NUM_COMMANDS] =
+{
+    NULL,
+    circleUpdateFunction,
+    boxUpdateFunction,
+    line1UpdateFunction,
+    line2UpdateFunction,
+    snakeUpdateFunction,
+    bowtievUpdateFunction,
+    bowtiehUpdateFunction,
+    snake2UpdateFunction,
+    tone1sUpdateFunction,
+};
+
+const demoInitFunction_t commandInitFuncs[NUM_COMMANDS] =
+{
+    idleInitFunction,
+    circleInitFunction,
+    boxInitFunction,
+    line1InitFunction,
+    line2InitFunction,
+    snakeInitFunction,
+    bowtievInitFunction,
+    bowtiehInitFunction,
+    snake2InitFunction,
+    tone1sInitFunction
+};
 
 void extsetup()
 {
-    Wire.begin();
+    Wire.begin();               // Initialize I2C bus
 
-    Serial.begin(115200);
-
-    pinMode(3, OUTPUT);
-    pinMode(5, OUTPUT);
-
-    pinMode(2, OUTPUT);
-    pinMode(4, OUTPUT);
-    pinMode(6, OUTPUT);
-    pinMode(7, OUTPUT);
-
-    digitalWrite(3, LOW);
-    digitalWrite(5, LOW);
-
-
-    pinMode(9, OUTPUT);
-    //analogWrite(5, 128);
+    Serial.begin(115200);       // Initialize UART
 
     Serial.println("Program start! Calibrate actuator...");
-    delay(2000);
 
-    actuatorOne.setSensorZero(0);
-    actuatorTwo.setSensorZero(0);
+    pinMode(9, OUTPUT);         // Set the laser control pin to OUTPUT
 
-    actuatorOne.initactuator();
-    actuatorTwo.initactuator();
+    idleInitFunction();         // Start in IDLE state
 
-    cargs[0][0] = &actuatorOne.PID()->coefficients.p;
-    cargs[1][0] = &actuatorOne.PID()->coefficients.i;
-    cargs[2][0] = &actuatorOne.PID()->coefficients.d;
-    cargs[4][0] = &actuatorOne.m_ampl;
-    cargs[3][0] = &actuatorOne.m_freq;
-
-    cargs[0][1] = &actuatorTwo.PID()->coefficients.p;
-    cargs[1][1] = &actuatorTwo.PID()->coefficients.i;
-    cargs[2][1] = &actuatorTwo.PID()->coefficients.d;
-    cargs[4][1] = &actuatorTwo.m_ampl;
-    cargs[3][1] = &actuatorTwo.m_freq;
-
-
-    //Serial.print(actuator_minpos);
-    //Serial.print(", ");
-    //Serial.println(actuator_maxpos);
-}
-
-void setSensorZero(int zeropos)
-{
-    Wire.beginTransmission(SENSOR_ADDR);
-    Wire.write(SENSOR_ZERO_ADDR);
-    Wire.write((zeropos >> 6)&0xFF);
-    Wire.write(zeropos & 0x3F);
-    Wire.endTransmission();
-}
-
-int readSensor(char reg_addr)
-{
-    //Serial.println("Clearing I2C input buffer...");
-    while(Wire.available())
-        Wire.read();
-
-    //Serial.println("Reading slave...");
-    Wire.beginTransmission(SENSOR_ADDR);
-    Wire.write(reg_addr);
-    Wire.endTransmission();
-    Wire.requestFrom(SENSOR_ADDR, 2);
-    while(Wire.available() < 2);
-
-    int ret = (Wire.read()&0xFF)<<6;
-    ret |= Wire.read() & 0x3F;
-
-    return ret;
+    MAYaw.initialize();         // Initialize Yaw/Pitch axes
+    MAPitch.initialize();
 }
 
 float calc_dt()
@@ -126,99 +143,35 @@ float calc_dt()
     cur_millis = millis();
     float ret = (cur_millis - prev_millis)/1000.0f;
     prev_millis = cur_millis;
+    if(ret < 0.00001f)
+        ret = 0.001f;
     return ret;
 }
 
-void setactuator(float x)
-{
-    if(x == 0)
-    {
-        digitalWrite(5, LOW);
-//        Serial.write('d');
-    }
-    if(x > 0)
-    {
-        if(x > 1.0f)
-            x = 1.0f;
-        digitalWrite(2, LOW);
-        digitalWrite(6, HIGH);
-
-        analogWrite(5, (uint8_t)(255 * x));
-//        Serial.write('g');
-    }
-    if(x < 0)
-    {
-        if(x < -1.0f)
-            x = -1.0f;
-        digitalWrite(2, HIGH);
-        digitalWrite(6, LOW);
-
-        analogWrite(5, (uint8_t)(255 * -x));
-//        Serial.write('l');
-    }
-}
-
-void initactuator()
-{
-    setactuator(-0.5);
-    Serial.println("Min pos");
-    delay(2000);
-    actuator_minpos = readSensor(SENSOR_ANG_ADDR);
-    setactuator(0.5);
-    Serial.println("Max pos");
-    delay(2000);
-    actuator_maxpos = readSensor(SENSOR_ANG_ADDR);
-    setactuator(0);
-}
-
-float getscaledpos()
-{
-    int pos = readSensor(SENSOR_ANG_ADDR);
-    return (((float)(pos - actuator_minpos))/(actuator_maxpos - actuator_minpos))*2.0f - 1.0f;
-}
 
 void processCommand(char * buf)
 {
-    float * toset = 0;
-    uint8_t index = buf[1]-'1';
-    switch(buf[0])
+    for(int i = 0; i < NUM_COMMANDS; i++)
     {
-    case 'p':
-    case 'P':
-        toset = cargs[0][index];
-        Serial.write('p');
-        break;
-    case 'i':
-    case 'I':
-        toset = cargs[1][index];
-        Serial.write('i');
-        break;
-    case 'd':
-    case 'D':
-        toset = cargs[3][index];
-        Serial.write('d');
-        break;
-    case 'f':
-        toset = cargs[4][index];
-        Serial.write('f');
-        break;
-    case 'g':
-        Serial.println(dt, 10);
-        return;
-        break;
-    case 'a':
-        toset = cargs[5][index];
-        break;
-    case 'l':
-        toset = &laserf;
-        break;
+        if(strncmp(buf, commandStrings[i], COMM_IBUFFER_SIZE) == 0)
+        {
+            demoUpdateFunction = commandUpdateFuncs[i];
+            commandInitFuncs[i]();
+
+            Serial.println(commandStrings[i]);
+            return;
+        }
     }
 
-    if(toset != 0)
+    if(strncmp(buf, "mult", 4) == 0)
     {
-        *toset = atof(buf + 2);
-        Serial.println(*toset, 10);
+        globalMult = atof(buf + 4);
+        Serial.print("new mult: ");
+        Serial.println(globalMult);
+        return;
     }
+
+    Serial.println("unrecognized command");
 }
 
 float t = 0;
@@ -226,50 +179,204 @@ float t = 0;
 void extloop()
 {
     dt = calc_dt();
-
     t += dt;
 
-    float sint = ampl * sin(t*freq*TWO_PI);
-    float lasersint = sin(t*laserf*TWO_PI);
-
-    if(laserf > 0)
+    if(t > 1000.0f)
     {
-        analogWrite(9, 255 * (lasersint/2.0f + 0.5f));
-    }
-    else
-    {
-        digitalWrite(9, (laserf < -1.0f)?HIGH:LOW);
+        t = 0.0f;
     }
 
-//    smooth.pushValue(getscaledpos());
-//    float pos = smooth.pullValue();
-    float pos1 = actuatorOne.getscaledpos();
-    float pos2 = actuatorTwo.getscaledpos();
+    if(demoUpdateFunction != NULL)
+    {
+        demoUpdateFunction(globalMult * t, dt);
+    }
 
-    float control1 = actuatorOne.calculate(pos1, sint, dt);
-    float control2 = actuatorTwo.calculate(pos2, sint, dt);
-
-    actuatorOne.setactuator(control1);
-    actuatorTwo.setactuator(control2);
+    MAYaw.update(dt);
+    MAPitch.update(dt);
 
     if(Serial.available())
     {
         ibuffer[ibufferIndex] = Serial.read();
         if(ibuffer[ibufferIndex++] == '\n')
         {
+            ibuffer[ibufferIndex - 1] = '\0';
             processCommand(ibuffer);
             ibufferIndex = 0;
         }
+
+        if(ibufferIndex == COMM_IBUFFER_SIZE)
+        {
+            ibufferIndex = 0;
+            Serial.println("Input too long!");
+        }
     }
-
-//    Serial.print(pos, 4);
-//    Serial.print(",\t");
-//    Serial.print(sint, 4);
-//    Serial.print(",\t");
-//    Serial.println(control, 4);
-
-    //accum |= magnitude;
-    //Serial.println(magnitude);
-    //delay(10);
 }
 
+void setLaser(float lp)
+{
+    if(lp >= 1)
+    {
+        digitalWrite(9, HIGH);
+    }
+    else if(lp > 0)
+    {
+        analogWrite(9, (255 * lp));
+    }
+    else
+    {
+        digitalWrite(9, LOW);
+    }
+}
+
+void circleInitFunction()
+{
+    setLaser(1);
+}
+
+void circleUpdateFunction(float t, float dt)
+{
+    float sint1 = 0.6 * sin((t*10 + 0.25)*TWO_PI);
+    float sint2 = 0.3 * sin((t*10 + 0)*TWO_PI);
+
+    MAYaw.setPos(sint1);
+    MAPitch.setPos(sint2);
+}
+
+void boxUpdateFunction(float t, float dt)
+{
+    t *= 4.0f;
+
+    float t1 = fmod(t, 1.0f)*2.0f - 1.0f;
+
+    switch(((int)t) % 4)
+    {
+    case 0:
+        MAYaw.setPos(0.6f*t1);
+        break;
+    case 1:
+        MAPitch.setPos(0.3f*t1);
+        break;
+    case 2:
+        MAYaw.setPos(-0.6f*t1);
+        break;
+    case 3:
+        MAPitch.setPos(-0.3f*t1);
+        break;
+    }
+}
+
+void line1UpdateFunction(float t, float dt)
+{
+    float sint1 = 0.6 * sin((t*5 + 0)*TWO_PI);
+    float sint2 = 0.3 * sin((t*5 + 0)*TWO_PI);
+
+    MAYaw.setPos(sint1);
+    MAPitch.setPos(sint2);
+}
+
+void line2UpdateFunction(float t, float dt)
+{
+    float sint1 = 0.6 * sin((t*5 - 0.5)*TWO_PI);
+    float sint2 = 0.3 * sin((t*5 + 0)*TWO_PI);
+
+    MAYaw.setPos(sint1);
+    MAPitch.setPos(sint2);
+}
+
+void snakeUpdateFunction(float t, float dt)
+{
+    circleUpdateFunction(t, dt);
+
+    float lasersint = (((int)(t*20.5f))%2)?1.0f:0.0f;
+
+    setLaser(lasersint);
+}
+
+void snake2UpdateFunction(float t, float dt)
+{
+    circleUpdateFunction(t, dt);
+
+    float lasersint = (sin(t*20.5*TWO_PI)+1.0f)/2.0f;
+
+    setLaser(lasersint);
+}
+
+void bowtievUpdateFunction(float t, float dt)
+{
+    float sint1 = 0.6 * sin((t*10)*TWO_PI);
+    float sint2 = 0.3 * sin((t*5)*TWO_PI);
+
+    MAYaw.setPos(sint1);
+    MAPitch.setPos(sint2);
+}
+
+void bowtiehUpdateFunction(float t, float dt)
+{
+    float sint1 = 0.6 * sin((t*5)*TWO_PI);
+    float sint2 = 0.3 * sin((t*10)*TWO_PI);
+
+    MAYaw.setPos(sint1);
+    MAPitch.setPos(sint2);
+}
+
+void snake2InitFunction()
+{
+
+}
+
+void idleInitFunction()
+{
+    setLaser(-1);
+
+    MAYaw.setPos(0);
+    MAPitch.setPos(0);
+}
+
+void boxInitFunction()
+{
+    setLaser(1);
+}
+
+void line1InitFunction()
+{
+    setLaser(1);
+}
+
+void line2InitFunction()
+{
+    setLaser(1);
+}
+
+void snakeInitFunction()
+{
+
+}
+
+void bowtievInitFunction()
+{
+    setLaser(1);
+}
+
+void bowtiehInitFunction()
+{
+    setLaser(1);
+}
+
+float toneCount = 0;
+
+void tone1sInitFunction()
+{
+    tone(8, 1000 * globalMult);
+    toneCount = 0;
+}
+
+void tone1sUpdateFunction(float t, float dt)
+{
+    if(toneCount >= 0)
+        toneCount += dt;
+    if(toneCount > 2)
+    {
+        toneCount = -1;
+        noTone(8);
+    }
+}
