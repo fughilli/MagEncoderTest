@@ -41,49 +41,46 @@ static void setSensorZero(char dev_addr, int zeropos)
 
 static int readSensor(char dev_addr, char reg_addr, bool * success)
 {
-    //Serial.write('0');
-    //Serial.println("Clearing I2C input buffer...");
+
+    // Clear input buffer
     while(Wire.available())
     {
-        //Serial.write('3');
         Wire.read();
     }
 
-    //Serial.println("Reading slave...");
+    // Start slave read... write register address
     Wire.beginTransmission(dev_addr);
-    //Serial.write('4');
     Wire.write(reg_addr);
-    //Serial.write('5');
+
+    // Write out buffer; check for error
     if(Wire.endTransmission(true) != 0)
     {
-        //Serial.write('8');
         if(success != NULL)
             *success = false;
         return -1;
     }
-    //Serial.write('6');
-    Wire.requestFrom(dev_addr, 2);
-    //Serial.write('7');
 
+    // Request 16 bits
+    Wire.requestFrom(dev_addr, 2);
+
+    // Timeout if read fails
     uint32_t startmillis = millis();
     while(Wire.available() < 2)
     {
         if(millis() > startmillis + SENSOR_READ_TIMEOUT)
         {
-            //Serial.write('2');
             if(success != NULL)
                 *success = false;
             return -1;
         }
     }
 
+    // Concatenate
     int ret = (Wire.read()&0xFF)<<6;
     ret |= Wire.read() & 0x3F;
 
     if(success != NULL)
         *success = true;
-
-    //Serial.write('1');
 
     return ret;
 }
